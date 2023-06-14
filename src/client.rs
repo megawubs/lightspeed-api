@@ -107,8 +107,6 @@ impl ToString for Cluster {
     }
 }
 
-impl Cluster {}
-
 pub enum Language {
     NL,
     EN,
