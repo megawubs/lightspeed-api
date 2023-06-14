@@ -128,11 +128,11 @@ mod tests {
 
     use crate::client::{Client, RequestConfig};
 
-    struct MockServerPath<'a> {
+    struct MockServerConfig<'a> {
         server: &'a MockServer,
     }
 
-    impl RequestConfig for MockServerPath<'_> {
+    impl RequestConfig for MockServerConfig<'_> {
         fn path(&self, path: &str) -> String {
             self.server.url(path)
         }
@@ -167,7 +167,7 @@ mod tests {
                 .body_from_file("tests/stubs/account.json");
         });
 
-        let config = MockServerPath {server: &server };
+        let config = MockServerConfig {server: &server };
         if let Ok(client) = Client::new(config) {
             let details = client.account().await.unwrap();
             assert_eq!(details.id, 19609);
