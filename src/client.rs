@@ -12,17 +12,21 @@ pub trait RequestConfig {
     fn secret(&self) -> Option<String>;
 }
 
-pub struct ClientConfig {
+pub struct ApiConfig {
     key: String,
     secret: String,
     cluster: Cluster,
     language: Language,
 }
 
-impl RequestConfig for ClientConfig {
+impl RequestConfig for ApiConfig {
     fn path(&self, path: &str) -> String {
+        let mut p = path;
+        if let Some(s) = path.strip_prefix("/") {
+            p = s;
+        }
         let mut url = self.to_string();
-        url.push_str(path);
+        url.push_str(p);
         url
     }
 
@@ -43,9 +47,9 @@ impl RequestConfig for ClientConfig {
     }
 }
 
-impl ClientConfig {
+impl ApiConfig {
     pub fn new(key: String, secret: String, cluster: Cluster, language: Language) -> Self {
-        ClientConfig {
+        ApiConfig {
             key,
             secret,
             cluster,
@@ -54,30 +58,30 @@ impl ClientConfig {
     }
 }
 
-impl ToString for ClientConfig {
+impl ToString for ApiConfig {
     fn to_string(&self) -> String {
         format!("{cluster_url}{shop_language}/", cluster_url = &self.cluster_url(), shop_language = &self.shop_language())
     }
 }
 
-pub struct Client<S: RequestConfig> {
+pub struct Api<S: RequestConfig> {
     client: reqwest::Client,
     config: S,
 }
 
-impl<S: RequestConfig> Client<S> {
-    pub fn new(config: S) -> Result<Client<S>, reqwest::Error> {
+impl<S: RequestConfig> Api<S> {
+    pub fn new(config: S) -> Result<Api<S>, reqwest::Error> {
         let mut headers = header::HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_static("application/json"));
         headers.insert("User-Agent", HeaderValue::from_static("Lightspeed-API/0.0.1 (rust/2021)"));
 
         let http_client = reqwest::Client::builder().default_headers(headers).build()?;
 
-        let client = Client {
+        let api = Api {
             client: http_client,
             config,
         };
-        Ok(client)
+        Ok(api)
     }
 
     pub async fn account(&self) -> Result<Account, reqwest::Error> {
@@ -126,7 +130,7 @@ impl ToString for Language {
 mod tests {
     use httpmock::prelude::*;
 
-    use crate::client::{Client, RequestConfig};
+    use crate::client::{Api, ApiConfig, Cluster, Language, RequestConfig};
 
     struct MockServerConfig<'a> {
         server: &'a MockServer,
@@ -155,21 +159,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn api_config_test_eu_en() {
+        let config = ApiConfig::new("foo".to_string(), "bar".to_string(), Cluster::EU1, Language::EN);
+        let url = config.path("/account.json");
+        assert_eq!(url, "https://api.webshopapp.com/en/account.json");
+    }
+
+    #[tokio::test]
+    async fn api_config_test_us_en() {
+        let config = ApiConfig::new("foo".to_string(), "bar".to_string(), Cluster::US1, Language::EN);
+        let url = config.path("account.json");
+        assert_eq!(url, "https://api.shoplightspeed.com/en/account.json");
+        let url = config.path("/account.json");
+        assert_eq!(url, "https://api.shoplightspeed.com/en/account.json");
+    }
+
+    #[tokio::test]
     async fn account_details() {
         let server = MockServer::start();
 
         let account_mock = server.mock(|when, then| {
             when.method(GET)
-                .path("/account.json")
-                ;
+                .path("/account.json");
+
             then.status(200)
                 .header("content-type", "application/json")
                 .body_from_file("tests/stubs/account.json");
         });
 
-        let config = MockServerConfig {server: &server };
-        if let Ok(client) = Client::new(config) {
-            let details = client.account().await.unwrap();
+        let config = MockServerConfig { server: &server };
+        if let Ok(api) = Api::new(config) {
+            let details = api.account().await.unwrap();
             assert_eq!(details.id, 19609);
         }
         account_mock.assert();
