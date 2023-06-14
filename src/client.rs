@@ -166,6 +166,13 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn api_config_test_eu_nl() {
+        let config = ApiConfig::new("foo".to_string(), "bar".to_string(), Cluster::EU1, Language::NL);
+        let url = config.path("/account.json");
+        assert_eq!(url, "https://api.webshopapp.com/nl/account.json");
+    }
+
+    #[tokio::test]
     async fn api_config_test_us_en() {
         let config = ApiConfig::new("foo".to_string(), "bar".to_string(), Cluster::US1, Language::EN);
         let url = config.path("account.json");
